@@ -1,4 +1,4 @@
-// Làng Trăng Máu — server nhiều người chơi (1 server duy nhất), không phụ thuộc thư viện ngoài.
+// Trò Chơi Nói Dối — server nhiều người chơi (1 server duy nhất), không phụ thuộc thư viện ngoài.
 const http = require('http'), fs = require('fs'), path = require('path');
 const createGame = require('./game.js');
 const PORT = process.env.PORT || 3000;
@@ -39,6 +39,6 @@ if (process.env.SIM) { // tự chơi toàn máy để kiểm thử: SIM=1 node s
     } else if (u.pathname === '/health') { res.writeHead(200, { 'Content-Type': 'text/plain' }); res.end('ltm-server'); }
     else if (u.pathname === '/game.js') file(res, 'game.js', 'text/javascript');
     else file(res, 'index.html', 'text/html');
-  }).listen(PORT, () => console.log(`Làng Trăng Máu: http://localhost:${PORT}`));
+  }).listen(PORT, () => console.log(`Trò Chơi Nói Dối: http://localhost:${PORT}`));
   setInterval(() => { for (const r of conns.values()) r.write(': ping\n\n'); }, 20000);
 }

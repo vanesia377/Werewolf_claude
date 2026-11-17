@@ -1,4 +1,4 @@
-// Bộ luật game Làng Trăng Máu — dùng chung cho server Node và chế độ chạy thẳng trên trình duyệt.
+// Bộ luật game Trò Chơi Nói Dối — dùng chung cho server Node và chế độ chạy thẳng trên trình duyệt.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(); else root.createGame = factory();
 })(this, function () {

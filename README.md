@@ -1,4 +1,4 @@
-# Làng Trăng Máu
+# Trò Chơi Nói Dối
 
 Game ma sói tối đa 16 người với 43 vai trò. Chủ phòng chọn vai trò trong phòng chờ trước khi bắt đầu; mặc định là 11 Dân · 3 Sói · 1 Trung lập · 1 Solo. Không cần thư viện ngoài.
 

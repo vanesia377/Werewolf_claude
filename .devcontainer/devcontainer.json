@@ -1,0 +1,7 @@
+{
+  "name": "Trò Chơi Nói Dối",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "forwardPorts": [3000],
+  "portsAttributes": { "3000": { "label": "Trò Chơi Nói Dối", "onAutoForward": "openBrowser" } },
+  "postAttachCommand": "npm start"
+}

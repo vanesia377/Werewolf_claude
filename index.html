@@ -37,7 +37,7 @@
 <body>
 <div id="join">
   <h1>🌕 Làng Trăng Máu</h1>
-  <p>Game ma sói 16 người · 1 server duy nhất</p>
+  <p id="mode">Game ma sói 16 người · 1 server duy nhất</p>
   <input id="name" maxlength="16" placeholder="Tên của bạn">
   <button id="joinBtn">Vào làng</button>
 </div>
@@ -57,20 +57,32 @@
     </div>
   </main>
 </div>
+<script src="game.js"></script>
 <script>
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let tok=localStorage.ltmTok; if(!tok){tok=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.ltmTok=tok;}
 let S=null,deadline=0,guess=null,sel=null,wHeal=null,wPoison=null,lastKey='';
-const api=(type,d={})=>fetch('/api',{method:'POST',body:JSON.stringify({token:tok,type,...d})});
+// Có server thì chơi nhiều người; không có (GitHub Pages, mở file trực tiếp) thì luật chạy ngay trong trình duyệt với 15 máy.
+let local=null;
+const show=()=>{S=local.view(tok);deadline=Date.now()+S.left;render();};
+const api=async(type,d={})=>{
+  if(local){local.handle({token:tok,type,...d});show();}
+  else await fetch('api',{method:'POST',body:JSON.stringify({token:tok,type,...d})});
+};
+const ready=fetch('health').then(r=>r.text()).then(t=>t.trim()==='ltm-server').catch(()=>false).then(online=>{
+  if(!online){local=createGame({isConnected:()=>true,broadcast:()=>show()});$('mode').textContent='Chế độ chơi đơn: bạn và 15 máy, chạy ngay trong trình duyệt';}
+});
 const TEAM={village:'Dân',wolf:'Sói',solo:'Solo'};
 const PH={lobby:()=>'Phòng chờ',night:s=>`🌙 Đêm ${s.round}`,witch:s=>`🧪 Giờ phù thủy (đêm ${s.round})`,day:s=>`☀️ Ngày ${s.round} – thảo luận`,vote:s=>`🗳️ Ngày ${s.round} – bỏ phiếu`,end:()=>'🏁 Kết thúc'};
 
 async function join(){
   const n=$('name').value.trim(); if(!n)return; localStorage.ltmName=n;
+  await ready;
   await api('join',{name:n});
   $('join').style.display='none'; $('app').style.display='block';
-  const es=new EventSource('/events?token='+encodeURIComponent(tok));
+  if(local)return show();
+  const es=new EventSource('events?token='+encodeURIComponent(tok));
   es.onmessage=e=>{S=JSON.parse(e.data);deadline=Date.now()+S.left;render();};
 }
 $('joinBtn').onclick=join; $('name').onkeydown=e=>{if(e.key==='Enter')join();};

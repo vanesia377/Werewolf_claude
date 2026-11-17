@@ -1,0 +1,7 @@
+{
+  "name": "Làng Trăng Máu",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:20",
+  "forwardPorts": [3000],
+  "portsAttributes": { "3000": { "label": "Làng Trăng Máu", "onAutoForward": "openBrowser" } },
+  "postAttachCommand": "npm start"
+}

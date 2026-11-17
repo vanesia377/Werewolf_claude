@@ -1,10 +1,10 @@
 # Làng Trăng Máu
 
-Game ma sói 16 người: 11 Dân · 3 Sói · 1 Trung lập · 1 Solo. Không cần thư viện ngoài.
+Game ma sói tối đa 16 người với 39 vai trò. Chủ phòng chọn vai trò trong phòng chờ trước khi bắt đầu; mặc định là 11 Dân · 3 Sói · 1 Trung lập · 1 Solo. Không cần thư viện ngoài.
 
 ## Chơi ngay trên GitHub (không cần tải về)
 
-**Chơi đơn với 15 máy — GitHub Pages.** Bật Pages cho repo (Settings → Pages → Deploy from a branch → chọn nhánh chứa code, thư mục `/root`), rồi mở đường link Pages. Luật game chạy ngay trong trình duyệt, không cần server.
+**Chơi đơn với máy — GitHub Pages.** Bật Pages cho repo (Settings → Pages → Deploy from a branch → chọn nhánh chứa code, thư mục `/root`), rồi mở đường link Pages. Luật game chạy ngay trong trình duyệt, không cần server.
 
 **Chơi nhiều người — GitHub Codespaces.** Bấm Code → Codespaces → Create codespace. Server tự khởi động ở cổng 3000. Để người khác vào được, mở tab Ports, đổi Visibility của cổng 3000 sang Public rồi gửi link.
 

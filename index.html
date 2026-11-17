@@ -24,14 +24,24 @@
   #grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
   .p{background:#1a1829;border:2px solid var(--line);border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer;min-height:84px;position:relative;overflow-wrap:anywhere}
   .p .ic{font-size:24px} .p .nm{font-size:13px;font-weight:600} .p .sub{font-size:11px;color:var(--mut)}
-  .p.dead{opacity:.4;cursor:default} .p.me{border-color:var(--gold)} .p.sel{border-color:var(--acc);background:#3a1f2a} .p.win{border-color:var(--ok)}
+  .p.dead{opacity:.45} .p.me{border-color:var(--gold)} .p.sel{border-color:var(--acc);background:#3a1f2a;opacity:1} .p.win{border-color:var(--ok)}
   .p .vc{position:absolute;top:3px;right:5px;background:var(--acc);border-radius:10px;font-size:11px;padding:0 6px}
-  #role .big{font-size:20px;font-weight:700} #role .d{color:var(--mut);font-size:13px;margin-top:4px}
-  #panel .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  #role .big{font-size:20px;font-weight:700} .d{color:var(--mut);font-size:13px;margin-top:4px} .note{font-size:13px;margin-top:6px;color:var(--gold)}
+  .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;align-items:center}
   .scroll{max-height:190px;overflow:auto;font-size:13px} .scroll div{padding:2px 0;border-bottom:1px solid #2b2740}
   .wolf{color:#ff8a80}.deadc{color:var(--mut);font-style:italic}
   #chatrow{display:flex;gap:6px;margin-top:8px} #chatrow input{flex:1}
-  .win{color:var(--gold);font-weight:700;font-size:17px}
+  .winT{color:var(--gold);font-weight:700;font-size:17px}
+  #setupBox{display:none}
+  #setupHead{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px}
+  #setupHead .sum{flex:1;font-weight:600} .bad{color:#ff8a80} .good{color:var(--ok)}
+  .cat{font-size:13px;font-weight:700;margin:12px 0 6px}
+  .roles{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:6px}
+  .r{display:flex;gap:8px;align-items:flex-start;background:#1a1829;border:1px solid var(--line);border-radius:10px;padding:8px}
+  .r.on{border-color:var(--gold)} .r .ri{font-size:22px} .r .rt{flex:1;min-width:0} .r .rn{font-weight:600;font-size:14px} .r .rd{font-size:12px;color:var(--mut)}
+  .r .cnt{display:flex;align-items:center;gap:4px} .r .cnt b{min-width:18px;text-align:center}
+  .r button{padding:2px 9px;border-radius:6px}
+  #lineup{font-size:13px;color:var(--mut)}
 </style>
 </head>
 <body>
@@ -43,10 +53,12 @@
 </div>
 <div id="app">
   <header><h1>🌕 Làng Trăng Máu</h1><span id="phase"></span><span id="timer"></span><span id="hostBtns"></span></header>
+  <div class="box" id="setupBox"></div>
   <main>
     <div>
       <div class="box"><h2>Người chơi</h2><div id="grid"></div></div>
       <div class="box"><h2>Diễn biến</h2><div id="log" class="scroll"></div></div>
+      <div class="box" id="lineupBox"><h2>Đội hình ván này</h2><div id="lineup"></div></div>
     </div>
     <div>
       <div class="box" id="role"></div>
@@ -62,8 +74,8 @@
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let tok=localStorage.ltmTok; if(!tok){tok=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.ltmTok=tok;}
-let S=null,deadline=0,guess=null,sel=null,wHeal=null,wPoison=null,lastKey='';
-// Có server thì chơi nhiều người; không có (GitHub Pages, mở file trực tiếp) thì luật chạy ngay trong trình duyệt với 15 máy.
+let S=null,deadline=0,guess=null,sel=null,pick2=[],wHeal=null,wPoison=null,lastKey='';
+// Có server thì chơi nhiều người; không có (GitHub Pages, mở file trực tiếp) thì luật chạy ngay trong trình duyệt với máy.
 let local=null;
 const show=()=>{S=local.view(tok);deadline=Date.now()+S.left;render();};
 const api=async(type,d={})=>{
@@ -71,9 +83,10 @@ const api=async(type,d={})=>{
   else await fetch('api',{method:'POST',body:JSON.stringify({token:tok,type,...d})});
 };
 const ready=fetch('health').then(r=>r.text()).then(t=>t.trim()==='ltm-server').catch(()=>false).then(online=>{
-  if(!online){local=createGame({isConnected:()=>true,broadcast:()=>show()});$('mode').textContent='Chế độ chơi đơn: bạn và 15 máy, chạy ngay trong trình duyệt';}
+  if(!online){local=createGame({isConnected:()=>true,broadcast:()=>show()});$('mode').textContent='Chế độ chơi đơn: bạn và các máy, chạy ngay trong trình duyệt';}
 });
 const TEAM={village:'Dân',wolf:'Sói',solo:'Solo'};
+const CATS=[['village','🏡 Phe Dân'],['wolf','🐺 Phe Sói'],['neutral','🎭 Trung lập / bỏ phiếu'],['solo','🔪 Solo']];
 const PH={lobby:()=>'Phòng chờ',night:s=>`🌙 Đêm ${s.round}`,witch:s=>`🧪 Giờ phù thủy (đêm ${s.round})`,day:s=>`☀️ Ngày ${s.round} – thảo luận`,vote:s=>`🗳️ Ngày ${s.round} – bỏ phiếu`,end:()=>'🏁 Kết thúc'};
 
 async function join(){
@@ -93,28 +106,63 @@ setInterval(()=>{if(S)$('timer').textContent=S.left?Math.max(0,Math.ceil((deadli
 
 function clickP(id){
   const me=S.you; if(!me||!me.alive)return;
-  const p=S.players.find(x=>x.id===id); if(!p.alive)return;
+  const p=S.players.find(x=>x.id===id), k=me.nightAct;
   if(S.phase==='night'){
-    if(me.nightAct==='target')api('act',{target:me.action&&me.action.target===id?null:id});
-    else if(me.nightAct==='gamble'){ if(!guess){alert('Hãy chọn loại đoán (Dân / Sói / Solo) trước.');return;} api('act',{target:id,guess}); }
-  }else if(S.phase==='witch'&&me.pending&&me.st.poison){ wPoison=wPoison===id?null:id; api('witch',{heal:wHeal,poison:wPoison}); render(); }
+    if(!k)return;
+    const toggle=()=>api('act',{target:me.action&&me.action.target===id?null:id});
+    if(k==='dead'){ if(!p.alive)toggle(); return; }
+    if(!p.alive)return;
+    if(k==='target2'){
+      const i=pick2.indexOf(id); if(i>=0)pick2.splice(i,1); else{pick2.push(id);if(pick2.length>2)pick2.shift();}
+      api('act',{targets:pick2.length===2?pick2:[]}); render();
+    }else if(k==='gamble'){ if(!guess){alert('Hãy chọn loại đoán (Dân / Sói / Solo) trước.');return;} api('act',{target:id,guess}); }
+    else if(k.startsWith('target'))toggle();
+    return;
+  }
+  if(!p.alive)return;
+  if(S.phase==='witch'&&me.pending&&me.st.poison){ wPoison=wPoison===id?null:id; api('witch',{heal:wHeal,poison:wPoison}); render(); }
   else if(S.phase==='day'){ sel=sel===id?null:id; render(); }
-  else if(S.phase==='vote'){ if(me.role==='gunner'){sel=id;} api('vote',{target:me.vote===id?null:id}); }
+  else if(S.phase==='vote'){ sel=id; if(!me.muted)api('vote',{target:me.vote===id?null:id}); else render(); }
 }
 function setGuess(g){guess=g;render();}
 function heal(id){wHeal=wHeal===id?null:id;api('witch',{heal:wHeal,poison:wPoison});render();}
+function useAct(id){api('ability',{id,target:sel});}
+
+function renderSetup(s,isHost){
+  const R=s.roles,total=Object.values(s.setup).reduce((a,b)=>a+b,0);
+  const catN=c=>Object.keys(s.setup).reduce((a,r)=>a+(R[r].cat===c?s.setup[r]:0),0);
+  let h=`<h2>Chọn vai trò cho ván đấu</h2><div id="setupHead"><span class="sum">${total}/${s.max} vai trò · ${CATS.map(([c])=>catN(c)).join(' / ')} (Dân / Sói / Trung lập / Solo)</span>`
+    +`<span class="${s.setupIssue?'bad':'good'}">${s.setupIssue?esc(s.setupIssue):'✔ Đội hình hợp lệ'}</span>`
+    +(isHost?`<button class="alt" onclick="api('setupDefault')">Về mặc định</button>`:'<span class="d">Chỉ chủ phòng được chỉnh.</span>')+'</div>'
+    +'<div class="d">Thiếu người thì máy tự lấp cho đủ số vai trò đã chọn. Luôn cần ít nhất 2 Dân làng.</div>';
+  for(const [c,title] of CATS){
+    h+=`<div class="cat">${title} (${catN(c)})</div><div class="roles">`;
+    for(const k in R){ const r=R[k]; if(r.cat!==c)continue; const n=s.setup[k]||0;
+      h+=`<div class="r ${n?'on':''}"><div class="ri">${r.icon}</div><div class="rt"><div class="rn">${r.name}</div><div class="rd">${r.desc}</div></div>`
+        +`<div class="cnt">${isHost?`<button class="alt" ${n?'':'disabled'} onclick="api('setup',{role:'${k}',delta:-1})">−</button>`:''}<b>${n}</b>${isHost?`<button class="alt" ${total<s.max?'':'disabled'} onclick="api('setup',{role:'${k}',delta:1})">+</button>`:''}</div></div>`;
+    }
+    h+='</div>';
+  }
+  return h;
+}
 
 function render(){
   const s=S,me=s.you,R=s.roles,nm=id=>{const p=s.players.find(x=>x.id===id);return p?esc(p.name):'?';};
-  const key=s.phase+s.round; if(key!==lastKey){lastKey=key;sel=null;wHeal=null;wPoison=null;}
+  const key=s.phase+s.round; if(key!==lastKey){lastKey=key;sel=null;pick2=[];wHeal=null;wPoison=null;}
   $('phase').textContent=PH[s.phase](s);
-  const isHost=me&&s.host===me.id;
-  $('hostBtns').innerHTML=!isHost?'':s.phase==='lobby'?'<button onclick="api(\'start\')">Bắt đầu (tự thêm máy cho đủ 16)</button>':s.phase==='end'?'<button onclick="api(\'restart\')">Ván mới</button>':'<button class="alt" onclick="api(\'skip\')">Bỏ qua pha ⏭</button>';
+  const isHost=!!me&&s.host===me.id, lobby=s.phase==='lobby';
+  $('hostBtns').innerHTML=!isHost?'':lobby?`<button ${s.setupIssue?'disabled':''} onclick="api('start')">Bắt đầu ván đấu</button>`:s.phase==='end'?'<button onclick="api(\'restart\')">Về phòng chờ</button>':'<button class="alt" onclick="api(\'skip\')">Bỏ qua pha ⏭</button>';
+  $('setupBox').style.display=lobby?'block':'none';
+  if(lobby){const y=scrollY;$('setupBox').innerHTML=renderSetup(s,isHost);scrollTo(0,y);}
+  $('lineupBox').style.display=lobby?'none':'block';
+  $('lineup').innerHTML=Object.keys(s.setup).map(k=>`${R[k].icon} ${R[k].name}${s.setup[k]>1?' ×'+s.setup[k]:''}`).join(' · ');
+
   const votes={}; s.players.forEach(p=>{if(p.vote!=null)votes[p.vote]=(votes[p.vote]||0)+1;});
-  const mySel=me&&(s.phase==='night'?me.action&&me.action.target:s.phase==='witch'?wPoison:s.phase==='vote'?me.vote:sel);
+  const a=me&&me.action;
+  const mine=!me?[]:s.phase==='night'?(me.nightAct==='target2'?pick2:a&&a.target!=null?[a.target]:[]):s.phase==='witch'?[wPoison]:s.phase==='vote'?[me.vote,sel]:[sel];
   $('grid').innerHTML=s.players.map(p=>{
     const r=p.role&&R[p.role];
-    const cls=['p',p.alive?'':'dead',me&&p.id===me.id?'me':'',p.alive&&mySel===p.id?'sel':'',s.winners.includes(p.id)?'win':''].join(' ');
+    const cls=['p',p.alive?'':'dead',me&&p.id===me.id?'me':'',mine.includes(p.id)?'sel':'',s.winners.includes(p.id)?'win':''].join(' ');
     return `<div class="${cls}" onclick="clickP(${p.id})">${votes[p.id]?`<span class="vc">${votes[p.id]}</span>`:''}
       <div class="ic">${p.alive?(r?r.icon:'👤'):'💀'}</div><div class="nm">${esc(p.name)}${p.bot?' 🤖':''}</div>
       <div class="sub">${r?r.name:''}${p.vote!=null?` → ${nm(p.vote)}`:''}</div></div>`;}).join('');
@@ -124,19 +172,23 @@ function render(){
 
   if(!me){$('role').innerHTML='<h2>Khán giả</h2>Ván đang diễn ra hoặc phòng đã đủ. Hãy chờ ván sau.';$('panel').innerHTML='';return;}
   const r=me.role&&R[me.role];
-  $('role').innerHTML='<h2>Vai trò của bạn</h2>'+(r?`<div class="big">${r.icon} ${r.name}${me.alive?'':' — đã chết'}</div><div class="d">${r.desc}</div>`:'<div class="d">Chờ chủ phòng bắt đầu. Đội hình: 11 Dân · 3 Sói · 1 Trung lập · 1 Solo.</div>');
+  $('role').innerHTML='<h2>Vai trò của bạn</h2>'+(r?`<div class="big">${r.icon} ${r.name}${me.alive?'':' — đã chết'}</div><div class="d">${r.desc}</div>`:'<div class="d">Chờ chủ phòng chọn vai trò và bắt đầu.</div>')
+    +me.note.map(n=>`<div class="note">${esc(n)}</div>`).join('');
   let h='<h2>Hành động</h2>';
-  if(s.phase==='end')h+=`<div class="win">${esc(s.winText)}</div>`;
-  else if(s.phase==='lobby')h+=`${s.players.length}/16 người chơi trong phòng.`;
+  if(s.phase==='end')h+=`<div class="winT">${esc(s.winText)}</div>`;
+  else if(lobby)h+=`${s.players.length} người chơi trong phòng.`+(isHost?' Chọn vai trò ở bảng phía trên rồi bấm Bắt đầu.':'');
   else if(!me.alive)h+='Bạn đã chết. Bạn có thể trò chuyện với những người đã chết.';
   else if(s.phase==='night'){
-    const a=me.action;
-    if(me.nightAct==='target')h+=(a?`Đã chọn: <b>${nm(a.target)}</b>. `:'')+'Bấm vào 1 người chơi để chọn (bấm lại để bỏ).'+(me.role==='bodyguard'&&me.st.last?` Không thể chọn lại ${nm(me.st.last)}.`:'');
-    else if(me.nightAct==='gamble'){
+    const k=me.nightAct;
+    if(!k)h+='Đêm nay bạn không có hành động. Hãy chờ trời sáng.';
+    if(k==='target'||k==='target+use')h+=(a&&a.target!=null?`Đã chọn: <b>${nm(a.target)}</b>. `:'')+'Bấm vào 1 người chơi để chọn (bấm lại để bỏ).';
+    if(k==='target2')h+=`Bấm chọn 2 người chơi. Đã chọn: <b>${pick2.map(nm).join(', ')||'chưa ai'}</b>${a&&a.targets?' ✔':''}.`;
+    if(k==='dead')h+=(a?`Sẽ hồi sinh: <b>${nm(a.target)}</b>. `:'')+'Bấm vào 1 người phe Dân đã chết để hồi sinh (chỉ 1 lần).';
+    if(k==='gamble'){
       h+='Chọn loại đoán rồi bấm vào 1 người chơi:<div class="row">'+Object.keys(TEAM).map(g=>`<button class="${guess===g?'':'alt'}" ${me.st.uses[g]>0?'':'disabled'} onclick="setGuess('${g}')">${TEAM[g]} (còn ${me.st.uses[g]})</button>`).join('')+'</div>';
       if(a)h+=`<div class="row">Đã chọn: ${nm(a.target)} là ${TEAM[a.guess]}</div>`;
-    }else if(me.nightAct==='use')h+=`<div class="row"><button class="${a?'':'alt'}" onclick="api('act',{use:${a?'false':'true'}})">${a?'✔ Sẽ xem ai được bảo vệ đêm nay (bấm để hủy)':'Dùng khả năng (chỉ 1 lần)'}</button></div>`;
-    else h+='Đêm nay bạn không có hành động. Hãy chờ trời sáng.';
+    }
+    if(k&&k.includes('use')){const on=a&&a.use;h+=`<div class="row"><button class="${on?'':'alt'}" onclick="api('act',{use:${on?'false':'true'}})">${on?'✔ ':''}${esc(me.useLabel)}${on?' (bấm để hủy)':''}</button></div>`;}
   }else if(s.phase==='witch'){
     if(me.pending){
       h+=me.pending.length?'Sắp chết đêm nay:':'Đêm nay không ai sắp chết.';
@@ -144,10 +196,10 @@ function render(){
       h+=`<div class="row">${me.st.heal?'':'Bình cứu đã dùng. '}${me.st.poison?(wPoison?`☠ Sẽ đầu độc <b>${nm(wPoison)}</b> (bấm lại để hủy).`:'Bấm vào 1 người chơi để đầu độc.'):'Bình độc đã dùng.'}</div>`;
     }else h+='Phù thủy đang quyết định...';
   }else{
-    h+=s.phase==='day'?'Thảo luận để tìm ra kẻ đáng ngờ.':(me.vote?`Bạn đang bỏ phiếu cho <b>${nm(me.vote)}</b>.`:'Bấm vào 1 người chơi để bỏ phiếu.');
-    if(me.role==='gunner'){
-      const can=s.round>=2&&me.st.bullets>0&&me.st.shotRound!==s.round;
-      h+=`<div class="row">Đạn: ${me.st.bullets}. `+(s.round<2?'Không thể bắn trong ngày 1.':!can?'Hôm nay không thể bắn nữa.':sel&&sel!==me.id?`<button onclick="api('shoot',{target:${sel}})">🔫 Bắn ${nm(sel)}</button>`:'Chọn 1 người chơi để bắn.')+'</div>';
+    h+=me.muted?'Bạn không thể nói và bỏ phiếu hôm nay.':s.phase==='day'?'Thảo luận để tìm ra kẻ đáng ngờ.':(me.vote?`Bạn đang bỏ phiếu cho <b>${nm(me.vote)}</b>.`:'Bấm vào 1 người chơi để bỏ phiếu.');
+    for(const x of me.acts){
+      const t=x.target?sel!=null&&(x.self||sel!==me.id)?sel:null:0;
+      h+=`<div class="row"><button ${x.ok===false||t===null?'disabled':''} onclick="useAct('${x.id}')">${x.label}${x.target?(t?` → ${nm(t)}`:' (chọn 1 người chơi)'):''}</button><span class="d">${esc(x.hint||'')}</span></div>`;
     }
   }
   $('panel').innerHTML=h;

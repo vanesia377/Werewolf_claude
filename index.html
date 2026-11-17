@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Làng Trăng Máu</title>
+<style>
+  :root{--bg:#14121f;--card:#221f33;--line:#37324f;--txt:#ece8f7;--mut:#9a93b8;--acc:#e0564b;--ok:#5fc48a;--gold:#e8b949}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.45 system-ui,sans-serif}
+  button{font:inherit;background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 14px;cursor:pointer}
+  button.alt{background:var(--line)} button:disabled{opacity:.4;cursor:default}
+  input{font:inherit;background:#17152480;color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 10px;min-width:0}
+  #join{max-width:360px;margin:18vh auto;padding:24px;background:var(--card);border-radius:14px;text-align:center}
+  #join h1{margin:0 0 4px} #join p{color:var(--mut);margin:0 0 16px} #join input{width:100%;margin-bottom:10px} #join button{width:100%}
+  #app{display:none;max-width:1100px;margin:0 auto;padding:12px 16px}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:6px 0 12px}
+  header h1{font-size:18px;margin:0;flex:1}
+  #phase{font-weight:600} #timer{font-variant-numeric:tabular-nums;background:var(--card);padding:4px 10px;border-radius:8px;min-width:54px;text-align:center}
+  main{display:grid;grid-template-columns:1.3fr 1fr;gap:14px}
+  @media(max-width:760px){main{grid-template-columns:1fr}}
+  .box{background:var(--card);border-radius:12px;padding:12px;margin-bottom:14px}
+  .box h2{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--mut);margin:0 0 8px}
+  #grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .p{background:#1a1829;border:2px solid var(--line);border-radius:10px;padding:8px 4px;text-align:center;cursor:pointer;min-height:84px;position:relative;overflow-wrap:anywhere}
+  .p .ic{font-size:24px} .p .nm{font-size:13px;font-weight:600} .p .sub{font-size:11px;color:var(--mut)}
+  .p.dead{opacity:.4;cursor:default} .p.me{border-color:var(--gold)} .p.sel{border-color:var(--acc);background:#3a1f2a} .p.win{border-color:var(--ok)}
+  .p .vc{position:absolute;top:3px;right:5px;background:var(--acc);border-radius:10px;font-size:11px;padding:0 6px}
+  #role .big{font-size:20px;font-weight:700} #role .d{color:var(--mut);font-size:13px;margin-top:4px}
+  #panel .row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .scroll{max-height:190px;overflow:auto;font-size:13px} .scroll div{padding:2px 0;border-bottom:1px solid #2b2740}
+  .wolf{color:#ff8a80}.deadc{color:var(--mut);font-style:italic}
+  #chatrow{display:flex;gap:6px;margin-top:8px} #chatrow input{flex:1}
+  .win{color:var(--gold);font-weight:700;font-size:17px}
+</style>
+</head>
+<body>
+<div id="join">
+  <h1>🌕 Làng Trăng Máu</h1>
+  <p>Game ma sói 16 người · 1 server duy nhất</p>
+  <input id="name" maxlength="16" placeholder="Tên của bạn">
+  <button id="joinBtn">Vào làng</button>
+</div>
+<div id="app">
+  <header><h1>🌕 Làng Trăng Máu</h1><span id="phase"></span><span id="timer"></span><span id="hostBtns"></span></header>
+  <main>
+    <div>
+      <div class="box"><h2>Người chơi</h2><div id="grid"></div></div>
+      <div class="box"><h2>Diễn biến</h2><div id="log" class="scroll"></div></div>
+    </div>
+    <div>
+      <div class="box" id="role"></div>
+      <div class="box" id="panel"></div>
+      <div class="box"><h2>Thông tin riêng</h2><div id="priv" class="scroll"></div></div>
+      <div class="box"><h2>Trò chuyện</h2><div id="chat" class="scroll"></div>
+        <div id="chatrow"><input id="msg" maxlength="200" placeholder="Nhắn..."><button id="send" class="alt">Gửi</button></div></div>
+    </div>
+  </main>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let tok=localStorage.ltmTok; if(!tok){tok=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.ltmTok=tok;}
+let S=null,deadline=0,guess=null,sel=null,wHeal=null,wPoison=null,lastKey='';
+const api=(type,d={})=>fetch('/api',{method:'POST',body:JSON.stringify({token:tok,type,...d})});
+const TEAM={village:'Dân',wolf:'Sói',solo:'Solo'};
+const PH={lobby:()=>'Phòng chờ',night:s=>`🌙 Đêm ${s.round}`,witch:s=>`🧪 Giờ phù thủy (đêm ${s.round})`,day:s=>`☀️ Ngày ${s.round} – thảo luận`,vote:s=>`🗳️ Ngày ${s.round} – bỏ phiếu`,end:()=>'🏁 Kết thúc'};
+
+async function join(){
+  const n=$('name').value.trim(); if(!n)return; localStorage.ltmName=n;
+  await api('join',{name:n});
+  $('join').style.display='none'; $('app').style.display='block';
+  const es=new EventSource('/events?token='+encodeURIComponent(tok));
+  es.onmessage=e=>{S=JSON.parse(e.data);deadline=Date.now()+S.left;render();};
+}
+$('joinBtn').onclick=join; $('name').onkeydown=e=>{if(e.key==='Enter')join();};
+if(localStorage.ltmName){$('name').value=localStorage.ltmName;join();}
+function send(){const t=$('msg').value.trim();if(t){api('chat',{text:t});$('msg').value='';}}
+$('send').onclick=send; $('msg').onkeydown=e=>{if(e.key==='Enter')send();};
+setInterval(()=>{if(S)$('timer').textContent=S.left?Math.max(0,Math.ceil((deadline-Date.now())/1000))+'s':'—';},250);
+
+function clickP(id){
+  const me=S.you; if(!me||!me.alive)return;
+  const p=S.players.find(x=>x.id===id); if(!p.alive)return;
+  if(S.phase==='night'){
+    if(me.nightAct==='target')api('act',{target:me.action&&me.action.target===id?null:id});
+    else if(me.nightAct==='gamble'){ if(!guess){alert('Hãy chọn loại đoán (Dân / Sói / Solo) trước.');return;} api('act',{target:id,guess}); }
+  }else if(S.phase==='witch'&&me.pending&&me.st.poison){ wPoison=wPoison===id?null:id; api('witch',{heal:wHeal,poison:wPoison}); render(); }
+  else if(S.phase==='day'){ sel=sel===id?null:id; render(); }
+  else if(S.phase==='vote'){ if(me.role==='gunner'){sel=id;} api('vote',{target:me.vote===id?null:id}); }
+}
+function setGuess(g){guess=g;render();}
+function heal(id){wHeal=wHeal===id?null:id;api('witch',{heal:wHeal,poison:wPoison});render();}
+
+function render(){
+  const s=S,me=s.you,R=s.roles,nm=id=>{const p=s.players.find(x=>x.id===id);return p?esc(p.name):'?';};
+  const key=s.phase+s.round; if(key!==lastKey){lastKey=key;sel=null;wHeal=null;wPoison=null;}
+  $('phase').textContent=PH[s.phase](s);
+  const isHost=me&&s.host===me.id;
+  $('hostBtns').innerHTML=!isHost?'':s.phase==='lobby'?'<button onclick="api(\'start\')">Bắt đầu (tự thêm máy cho đủ 16)</button>':s.phase==='end'?'<button onclick="api(\'restart\')">Ván mới</button>':'<button class="alt" onclick="api(\'skip\')">Bỏ qua pha ⏭</button>';
+  const votes={}; s.players.forEach(p=>{if(p.vote!=null)votes[p.vote]=(votes[p.vote]||0)+1;});
+  const mySel=me&&(s.phase==='night'?me.action&&me.action.target:s.phase==='witch'?wPoison:s.phase==='vote'?me.vote:sel);
+  $('grid').innerHTML=s.players.map(p=>{
+    const r=p.role&&R[p.role];
+    const cls=['p',p.alive?'':'dead',me&&p.id===me.id?'me':'',p.alive&&mySel===p.id?'sel':'',s.winners.includes(p.id)?'win':''].join(' ');
+    return `<div class="${cls}" onclick="clickP(${p.id})">${votes[p.id]?`<span class="vc">${votes[p.id]}</span>`:''}
+      <div class="ic">${p.alive?(r?r.icon:'👤'):'💀'}</div><div class="nm">${esc(p.name)}${p.bot?' 🤖':''}</div>
+      <div class="sub">${r?r.name:''}${p.vote!=null?` → ${nm(p.vote)}`:''}</div></div>`;}).join('');
+  $('log').innerHTML=s.log.map(l=>`<div>${esc(l)}</div>`).join('');$('log').scrollTop=1e9;
+  $('chat').innerHTML=s.chat.map(c=>`<div class="${c.ch==='wolf'?'wolf':c.ch==='dead'?'deadc':''}">${c.ch==='wolf'?'🐺 ':c.ch==='dead'?'💀 ':''}<b>${esc(c.from)}:</b> ${esc(c.text)}</div>`).join('');$('chat').scrollTop=1e9;
+  $('priv').innerHTML=me&&me.priv.length?me.priv.map(l=>`<div>${esc(l)}</div>`).join(''):'<div class="deadc">Chưa có gì.</div>';$('priv').scrollTop=1e9;
+
+  if(!me){$('role').innerHTML='<h2>Khán giả</h2>Ván đang diễn ra hoặc phòng đã đủ. Hãy chờ ván sau.';$('panel').innerHTML='';return;}
+  const r=me.role&&R[me.role];
+  $('role').innerHTML='<h2>Vai trò của bạn</h2>'+(r?`<div class="big">${r.icon} ${r.name}${me.alive?'':' — đã chết'}</div><div class="d">${r.desc}</div>`:'<div class="d">Chờ chủ phòng bắt đầu. Đội hình: 11 Dân · 3 Sói · 1 Trung lập · 1 Solo.</div>');
+  let h='<h2>Hành động</h2>';
+  if(s.phase==='end')h+=`<div class="win">${esc(s.winText)}</div>`;
+  else if(s.phase==='lobby')h+=`${s.players.length}/16 người chơi trong phòng.`;
+  else if(!me.alive)h+='Bạn đã chết. Bạn có thể trò chuyện với những người đã chết.';
+  else if(s.phase==='night'){
+    const a=me.action;
+    if(me.nightAct==='target')h+=(a?`Đã chọn: <b>${nm(a.target)}</b>. `:'')+'Bấm vào 1 người chơi để chọn (bấm lại để bỏ).'+(me.role==='bodyguard'&&me.st.last?` Không thể chọn lại ${nm(me.st.last)}.`:'');
+    else if(me.nightAct==='gamble'){
+      h+='Chọn loại đoán rồi bấm vào 1 người chơi:<div class="row">'+Object.keys(TEAM).map(g=>`<button class="${guess===g?'':'alt'}" ${me.st.uses[g]>0?'':'disabled'} onclick="setGuess('${g}')">${TEAM[g]} (còn ${me.st.uses[g]})</button>`).join('')+'</div>';
+      if(a)h+=`<div class="row">Đã chọn: ${nm(a.target)} là ${TEAM[a.guess]}</div>`;
+    }else if(me.nightAct==='use')h+=`<div class="row"><button class="${a?'':'alt'}" onclick="api('act',{use:${a?'false':'true'}})">${a?'✔ Sẽ xem ai được bảo vệ đêm nay (bấm để hủy)':'Dùng khả năng (chỉ 1 lần)'}</button></div>`;
+    else h+='Đêm nay bạn không có hành động. Hãy chờ trời sáng.';
+  }else if(s.phase==='witch'){
+    if(me.pending){
+      h+=me.pending.length?'Sắp chết đêm nay:':'Đêm nay không ai sắp chết.';
+      h+='<div class="row">'+me.pending.map(id=>`<button class="${wHeal===id?'':'alt'}" ${me.st.heal?'':'disabled'} onclick="heal(${id})">${wHeal===id?'✔ Cứu ':'Cứu '}${nm(id)}</button>`).join('')+'</div>';
+      h+=`<div class="row">${me.st.heal?'':'Bình cứu đã dùng. '}${me.st.poison?(wPoison?`☠ Sẽ đầu độc <b>${nm(wPoison)}</b> (bấm lại để hủy).`:'Bấm vào 1 người chơi để đầu độc.'):'Bình độc đã dùng.'}</div>`;
+    }else h+='Phù thủy đang quyết định...';
+  }else{
+    h+=s.phase==='day'?'Thảo luận để tìm ra kẻ đáng ngờ.':(me.vote?`Bạn đang bỏ phiếu cho <b>${nm(me.vote)}</b>.`:'Bấm vào 1 người chơi để bỏ phiếu.');
+    if(me.role==='gunner'){
+      const can=s.round>=2&&me.st.bullets>0&&me.st.shotRound!==s.round;
+      h+=`<div class="row">Đạn: ${me.st.bullets}. `+(s.round<2?'Không thể bắn trong ngày 1.':!can?'Hôm nay không thể bắn nữa.':sel&&sel!==me.id?`<button onclick="api('shoot',{target:${sel}})">🔫 Bắn ${nm(sel)}</button>`:'Chọn 1 người chơi để bắn.')+'</div>';
+    }
+  }
+  $('panel').innerHTML=h;
+}
+</script>
+</body>
+</html>

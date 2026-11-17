@@ -9,13 +9,15 @@ if (process.env.SIM) { // tự chơi toàn máy để kiểm thử: SIM=1 node s
     game.reset([], setup); game.start(); let guard = 0;
     if (game.state().phase === 'lobby') return; // đội hình không hợp lệ
     game.state().players.forEach(p => seen.add(p.role));
+    for (const r of ['jailer', 'cupid']) if (game.state().players.filter(p => p.role === r).length > 1) throw new Error('quá 1 ' + r);
     while (game.state().phase !== 'end') { game.advance(); if (++guard > 500) throw new Error('ván không kết thúc'); }
     wins[game.state().winner] = (wins[game.state().winner] || 0) + 1;
   };
   for (let i = 0; i < 1000; i++) play(undefined); // đội hình mặc định
   for (let i = 0; i < 6000; i++) { // đội hình ngẫu nhiên, đủ mọi vai trò và mọi cỡ phòng
     const w = 1 + Math.floor(Math.random() * 3), v = 2 + Math.floor(Math.random() * 2);
-    play({ villager: v, randV: Math.max(1, Math.floor(Math.random() * (14 - v - w))), randW: w, randN: Math.floor(Math.random() * 2), randS: Math.floor(Math.random() * 3) });
+    const r = Math.max(2, Math.floor(Math.random() * (14 - v - w))), strong = Math.floor(Math.random() * (r + 1));
+    play({ villager: v, randVR: r - strong, randVS: strong, randW: w, randN: Math.floor(Math.random() * 2), randS: Math.floor(Math.random() * 3) });
   }
   const missing = Object.keys(game.roles).filter(r => !game.roles[r].random && !seen.has(r));
   console.log('OK', wins, missing.length ? 'CHƯA THỬ: ' + missing : 'đã thử đủ ' + seen.size + ' vai trò');

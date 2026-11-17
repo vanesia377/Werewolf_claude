@@ -42,6 +42,8 @@
   .r .cnt{display:flex;align-items:center;gap:4px} .r .cnt b{min-width:18px;text-align:center}
   .r button{padding:2px 9px;border-radius:6px}
   #lineup{font-size:13px;color:var(--mut)}
+  .tag{font-size:10px;font-weight:600;color:var(--gold);border:1px solid var(--gold);border-radius:6px;padding:0 4px;vertical-align:middle}
+  select{font:inherit;background:var(--line);color:var(--txt);border:0;border-radius:8px;padding:7px 8px;max-width:100%}
 </style>
 </head>
 <body>
@@ -74,7 +76,7 @@
 const $=id=>document.getElementById(id);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 let tok=localStorage.ltmTok; if(!tok){tok=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.ltmTok=tok;}
-let S=null,deadline=0,guess=null,sel=null,pick2=[],wHeal=null,wPoison=null,lastKey='';
+let S=null,deadline=0,guess=null,sel=null,pick2=[],forgeRole='villager',wHeal=null,wPoison=null,lastKey='';
 // Có server thì chơi nhiều người; không có (GitHub Pages, mở file trực tiếp) thì luật chạy ngay trong trình duyệt với máy.
 let local=null;
 const show=()=>{S=local.view(tok);deadline=Date.now()+S.left;render();};
@@ -112,9 +114,9 @@ function clickP(id){
     const toggle=()=>api('act',{target:me.action&&me.action.target===id?null:id});
     if(k==='dead'){ if(!p.alive)toggle(); return; }
     if(!p.alive)return;
-    if(k==='target2'){
-      const i=pick2.indexOf(id); if(i>=0)pick2.splice(i,1); else{pick2.push(id);if(pick2.length>2)pick2.shift();}
-      api('act',{targets:pick2.length===2?pick2:[]}); render();
+    if(k.startsWith('multi')){
+      const i=pick2.indexOf(id); if(i>=0)pick2.splice(i,1); else{pick2.push(id);if(pick2.length>me.pickMax)pick2.shift();}
+      api('act',{targets:pick2.length>=me.pickMin?pick2:[]}); render();
     }else if(k==='gamble'){ if(!guess){alert('Hãy chọn loại đoán (Dân / Sói / Solo) trước.');return;} api('act',{target:id,guess}); }
     else if(k.startsWith('target'))toggle();
     return;
@@ -126,7 +128,7 @@ function clickP(id){
 }
 function setGuess(g){guess=g;render();}
 function heal(id){wHeal=wHeal===id?null:id;api('witch',{heal:wHeal,poison:wPoison});render();}
-function useAct(id){api('ability',{id,target:sel});}
+function useAct(id){api('ability',{id,target:sel,role:forgeRole});}
 
 function renderSetup(s,isHost){
   const R=s.roles,total=Object.values(s.setup).reduce((a,b)=>a+b,0);
@@ -138,8 +140,8 @@ function renderSetup(s,isHost){
   for(const [c,title] of CATS){
     h+=`<div class="cat">${title} (${catN(c)})</div><div class="roles">`;
     for(const k in R){ const r=R[k]; if(r.cat!==c)continue; const n=s.setup[k]||0;
-      h+=`<div class="r ${n?'on':''}"><div class="ri">${r.icon}</div><div class="rt"><div class="rn">${r.name}</div><div class="rd">${r.desc}</div></div>`
-        +`<div class="cnt">${isHost?`<button class="alt" ${n?'':'disabled'} onclick="api('setup',{role:'${k}',delta:-1})">−</button>`:''}<b>${n}</b>${isHost?`<button class="alt" ${total<s.max?'':'disabled'} onclick="api('setup',{role:'${k}',delta:1})">+</button>`:''}</div></div>`;
+      h+=`<div class="r ${n?'on':''}"><div class="ri">${r.icon}</div><div class="rt"><div class="rn">${r.name}${r.tier==='strong'&&!r.random?' <span class="tag">mạnh</span>':''}${r.max?` <span class="tag">tối đa ${r.max}</span>`:''}</div><div class="rd">${r.desc}</div></div>`
+        +`<div class="cnt">${isHost?`<button class="alt" ${n?'':'disabled'} onclick="api('setup',{role:'${k}',delta:-1})">−</button>`:''}<b>${n}</b>${isHost?`<button class="alt" ${total<s.max&&!(r.max&&n>=r.max)?'':'disabled'} onclick="api('setup',{role:'${k}',delta:1})">+</button>`:''}</div></div>`;
     }
     h+='</div>';
   }
@@ -159,7 +161,7 @@ function render(){
 
   const votes={}; s.players.forEach(p=>{if(p.vote!=null)votes[p.vote]=(votes[p.vote]||0)+1;});
   const a=me&&me.action;
-  const mine=!me?[]:s.phase==='night'?(me.nightAct==='target2'?pick2:a&&a.target!=null?[a.target]:[]):s.phase==='witch'?[wPoison]:s.phase==='vote'?[me.vote,sel]:[sel];
+  const mine=!me?[]:s.phase==='night'?((me.nightAct||'').startsWith('multi')?pick2:a&&a.target!=null?[a.target]:[]):s.phase==='witch'?[wPoison]:s.phase==='vote'?[me.vote,sel]:[sel];
   $('grid').innerHTML=s.players.map(p=>{
     const r=p.role&&R[p.role];
     const cls=['p',p.alive?'':'dead',me&&p.id===me.id?'me':'',mine.includes(p.id)?'sel':'',s.winners.includes(p.id)?'win':''].join(' ');
@@ -182,7 +184,7 @@ function render(){
     const k=me.nightAct;
     if(!k)h+='Đêm nay bạn không có hành động. Hãy chờ trời sáng.';
     if(k==='target'||k==='target+use')h+=(a&&a.target!=null?`Đã chọn: <b>${nm(a.target)}</b>. `:'')+'Bấm vào 1 người chơi để chọn (bấm lại để bỏ).';
-    if(k==='target2')h+=`Bấm chọn 2 người chơi. Đã chọn: <b>${pick2.map(nm).join(', ')||'chưa ai'}</b>${a&&a.targets?' ✔':''}.`;
+    if(k&&k.startsWith('multi'))h+=`Bấm chọn ${me.pickMin===me.pickMax?me.pickMax:me.pickMin+'–'+me.pickMax} người chơi. ${esc(me.pickHint||'')} Đã chọn: <b>${pick2.map(nm).join(' → ')||'chưa ai'}</b>${a&&a.targets?' ✔':''}.`;
     if(k==='dead')h+=(a?`Sẽ hồi sinh: <b>${nm(a.target)}</b>. `:'')+'Bấm vào 1 người phe Dân đã chết để hồi sinh (chỉ 1 lần).';
     if(k==='gamble'){
       h+='Chọn loại đoán rồi bấm vào 1 người chơi:<div class="row">'+Object.keys(TEAM).map(g=>`<button class="${guess===g?'':'alt'}" ${me.st.uses[g]>0?'':'disabled'} onclick="setGuess('${g}')">${TEAM[g]} (còn ${me.st.uses[g]})</button>`).join('')+'</div>';
@@ -199,6 +201,7 @@ function render(){
     h+=me.muted?'Bạn không thể nói và bỏ phiếu hôm nay.':s.phase==='day'?'Thảo luận để tìm ra kẻ đáng ngờ.':(me.vote?`Bạn đang bỏ phiếu cho <b>${nm(me.vote)}</b>.`:'Bấm vào 1 người chơi để bỏ phiếu.');
     for(const x of me.acts){
       const t=x.target?sel!=null&&(x.self||sel!==me.id)?sel:null:0;
+      if(x.pick==='role')h+=`<div class="row">Vai trò giả: <select onchange="forgeRole=this.value">${Object.keys(R).filter(k=>!R[k].random).map(k=>`<option value="${k}" ${k===forgeRole?'selected':''}>${R[k].icon} ${R[k].name}</option>`).join('')}</select></div>`;
       h+=`<div class="row"><button ${x.ok===false||t===null?'disabled':''} onclick="useAct('${x.id}')">${x.label}${x.target?(t?` → ${nm(t)}`:' (chọn 1 người chơi)'):''}</button><span class="d">${esc(x.hint||'')}</span></div>`;
     }
   }
